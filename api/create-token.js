@@ -16,7 +16,9 @@ module.exports = async function handler(req, res) {
       url: process.env.UPSTASH_REDIS_REST_URL,
       token: process.env.UPSTASH_REDIS_REST_TOKEN,
     });
-
+    
+console.log('BookX payload:', JSON.stringify(req.body));
+    
     const {
       order_id,
       booking_date,
