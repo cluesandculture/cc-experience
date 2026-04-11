@@ -31,15 +31,15 @@ module.exports = async function handler(req, res) {
   // Map route from product name
   const productName = (payload.productName || '').toLowerCase();
   // Auto-generate route slug from product name
-// "West End: Flavor, Legacy & the City's Rhythm" → "west-end"
-// "Southside: Hidden Gems & Sweet Moments" → "southside"
-// "Charleston Battery: History & Bites" → "charleston-battery"
-const route = productName
-  .split(':')[0]          // take everything before the colon
-  .trim()                 // remove whitespace
-  .toLowerCase()          // lowercase
-  .replace(/[^a-z0-9]+/g, '-')  // replace non-alphanumeric with hyphens
-  .replace(/^-|-$/g, '');       // trim leading/trailing hyphens
+  // "West End: Flavor, Legacy & the City's Rhythm" → "west-end"
+  // "Southside: Hidden Gems & Sweet Moments" → "southside"
+  // "Charleston Battery: History & Bites" → "charleston-battery"
+  const route = productName
+    .split(':')[0]          // take everything before the colon
+    .trim()                 // remove whitespace
+    .toLowerCase()          // lowercase
+    .replace(/[^a-z0-9]+/g, '-')  // replace non-alphanumeric with hyphens
+    .replace(/^-|-$/g, '');       // trim leading/trailing hyphens
 
   // Map diet from variant name
   const variantName = (payload.variantName || '').toLowerCase();
