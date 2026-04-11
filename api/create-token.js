@@ -41,4 +41,4 @@ console.log('BookX payload:', JSON.stringify(req.body));
     const expiresAt = new Date(booking_date + 'T15:00:00');
     const expiresAtUnix = Math.floor(expiresAt.getTime() / 1000);
 
-    const lookupKey = `lookup:${route}:${booking_date
+    const lookupKey = `lookup:${route}:${booking_date}
