@@ -8,17 +8,40 @@ module.exports = async function handler(req, res) {
 
   console.log('BookX payload:', JSON.stringify(req.body));
 
-  const body = req.body || {};
+  // Handle verification ping
+  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
-  const booking_date = body.booking_date || body.date || body.bookingDate;
-  const route = body.route || body.service || body.serviceName || 'west-end';
-  const guest_email = body.guest_email || body.email || body.customerEmail;
-  const guest_name = body.guest_name || body.name || body.customerName;
-  const diet_preference = body.diet_preference || body.dietPreference || body.diet || 'standard';
-
-  if (!booking_date) {
+  if (!body.topic || body.topic !== 'booking-created') {
     return res.status(200).json({ received: true });
   }
+
+  const payload = body.payload || {};
+
+  // Parse booking date from "Sat, 18 Apr 2026" → "2026-04-18"
+  const rawDate = payload.bookingDate || '';
+  const parsedDate = new Date(rawDate);
+  const booking_date = !isNaN(parsedDate)
+    ? parsedDate.toISOString().split('T')[0]
+    : null;
+
+  if (!booking_date) {
+    return res.status(200).json({ received: true, error: 'Could not parse date' });
+  }
+
+  // Map route from product name
+  const productName = (payload.productName || '').toLowerCase();
+  let route = 'west-end';
+  if (productName.includes('west end')) route = 'west-end';
+  // Add more routes here as you expand cities:
+  // if (productName.includes('southside')) route = 'southside';
+
+  // Map diet from variant name
+  const variantName = (payload.variantName || '').toLowerCase();
+  const diet = variantName.includes('vegetarian') ? 'vegetarian' : 'standard';
+
+  const guest_email = payload.email || '';
+  const guest_name = payload.customerDisplayName || '';
+  const order_id = payload.orderName || '';
 
   try {
     const redis = new Redis({
@@ -49,7 +72,10 @@ module.exports = async function handler(req, res) {
         previewAt: previewAt.toISOString(),
         activeAt: activeAt.toISOString(),
         expiresAt: expiresAt.toISOString(),
-        diet: diet_preference,
+        diet,
+        guestEmail: guest_email,
+        guestName: guest_name,
+        orderId: order_id,
         createdAt: new Date().toISOString()
       };
 
@@ -60,10 +86,14 @@ module.exports = async function handler(req, res) {
       await redis.set(lookupKey, token, { exat: expiresAtUnix });
     }
 
+    console.log('Token created:', token, 'for', route, booking_date, guest_email);
+
     return res.status(200).json({
       token,
       route,
       booking_date,
+      diet,
+      guest_email,
       link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
       preview_at: previewAt.toISOString(),
       active_at: activeAt.toISOString(),
