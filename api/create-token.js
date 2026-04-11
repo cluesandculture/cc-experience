@@ -11,9 +11,9 @@ module.exports = async function handler(req, res) {
   // Handle verification ping
   const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
-  if (!body.topic || body.topic !== 'booking-created') {
-    return res.status(200).json({ received: true });
-  }
+  if (!body.topic || !['booking-created', 'booking-updated'].includes(body.topic)) {
+  return res.status(200).json({ received: true });
+}
 
   const payload = body.payload || {};
 
