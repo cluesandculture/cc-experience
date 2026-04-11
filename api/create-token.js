@@ -84,3 +84,87 @@ module.exports = async function handler(req, res) {
     let token;
     if (existing) {
       token = existing;
+    } else {
+      token = uuidv4();
+      const tokenData = {
+        token,
+        route,
+        bookingDate: booking_date,
+        previewAt: previewAt.toISOString(),
+        activeAt: activeAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        diet,
+        guestEmail: guest_email,
+        guestName: guest_name,
+        orderId: order_id,
+        createdAt: new Date().toISOString()
+      };
+
+      await redis.set(`token:${token}`, JSON.stringify(tokenData), {
+        exat: expiresAtUnix
+      });
+
+      await redis.set(lookupKey, token, { exat: expiresAtUnix });
+    }
+
+    console.log('Token created:', token, 'for', route, booking_date, guest_email);
+
+    if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
+      try {
+        await fetch('https://a.klaviyo.com/api/events/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Klaviyo-API-Key ${process.env.KLAVIYO_PRIVATE_KEY}`,
+            'Content-Type': 'application/json',
+            'revision': '2024-02-15'
+          },
+          body: JSON.stringify({
+            data: {
+              type: 'event',
+              attributes: {
+                profile: {
+                  data: {
+                    type: 'profile',
+                    attributes: { email: guest_email }
+                  }
+                },
+                metric: {
+                  data: {
+                    type: 'metric',
+                    attributes: { name: 'Experience Link Ready' }
+                  }
+                },
+                properties: {
+                  clue_link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
+                  booking_date: booking_date,
+                  booking_route: route,
+                  booking_diet: diet,
+                  guest_name: guest_name
+                }
+              }
+            }
+          })
+        });
+        console.log('Klaviyo event fired for', guest_email);
+      } catch (klaviyoErr) {
+        console.error('Klaviyo update failed:', klaviyoErr);
+      }
+    }
+
+    return res.status(200).json({
+      token,
+      route,
+      booking_date,
+      diet,
+      guest_email,
+      link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
+      preview_at: previewAt.toISOString(),
+      active_at: activeAt.toISOString(),
+      expires_at: expiresAt.toISOString()
+    });
+
+  } catch (err) {
+    console.error('create-token error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
