@@ -63,8 +63,28 @@ module.exports = async function handler(req, res) {
     const expiresAt = new Date(booking_date + 'T15:00:00');
     const expiresAtUnix = Math.floor(expiresAt.getTime() / 1000);
 
-    const lookupKey = `lookup:${route}:${booking_date}`;
-    const existing = await redis.get(lookupKey);
+   // On reschedule — delete old token from timeline notes
+if (body.topic === 'booking-updated') {
+  const timeline = payload.timeline || [];
+  const rescheduleEntry = timeline.find(t => t.cardTitle && t.cardTitle.includes('Booking date'));
+  if (rescheduleEntry && rescheduleEntry.notes) {
+    const notesParts = rescheduleEntry.notes.split(' to ');
+    if (notesParts[0]) {
+      const oldRawDate = notesParts[0].trim();
+      const oldParsed = new Date(oldRawDate);
+      if (!isNaN(oldParsed)) {
+        const oldDate = oldParsed.toISOString().split('T')[0];
+        const oldLookupKey = `lookup:${route}:${oldDate}`;
+        const oldToken = await redis.get(oldLookupKey);
+        if (oldToken) {
+          await redis.del(`token:${oldToken}`);
+          await redis.del(oldLookupKey);
+          console.log('Old token deleted for', route, oldDate);
+        }
+      }
+    }
+  }
+}
 
     let token;
     if (existing) {
