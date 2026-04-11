@@ -1,7 +1,6 @@
 {
   "name": "clues-and-culture-api",
   "version": "1.0.0",
-  "type": "module",
   "dependencies": {
     "@upstash/redis": "^1.28.0",
     "uuid": "^9.0.0"
