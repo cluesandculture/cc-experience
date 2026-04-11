@@ -88,6 +88,36 @@ module.exports = async function handler(req, res) {
 
     console.log('Token created:', token, 'for', route, booking_date, guest_email);
 
+    // Push token link to Klaviyo profile
+if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
+  try {
+    await fetch('https://a.klaviyo.com/api/profile-import/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Klaviyo-API-Key ${process.env.KLAVIYO_PRIVATE_KEY}`,
+        'Content-Type': 'application/json',
+        'revision': '2024-02-15'
+      },
+      body: JSON.stringify({
+        data: {
+          type: 'profile',
+          attributes: {
+            email: guest_email,
+            properties: {
+              clue_link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
+              booking_date: booking_date,
+              booking_route: route,
+              booking_diet: diet
+            }
+          }
+        }
+      })
+    });
+    console.log('Klaviyo profile updated for', guest_email);
+  } catch (klaviyoErr) {
+    console.error('Klaviyo update failed:', klaviyoErr);
+  }
+}
     return res.status(200).json({
       token,
       route,
