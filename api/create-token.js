@@ -27,8 +27,9 @@ module.exports = async function handler(req, res) {
     } = req.body;
 
     if (!booking_date || !route) {
-      return res.status(400).json({ error: 'Missing booking_date or route' });
-    }
+  // Return 200 for webhook verification pings
+  return res.status(200).json({ received: true });
+}
 
     const previewAt = new Date(booking_date + 'T00:00:00');
     previewAt.setDate(previewAt.getDate() - 1);
