@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/create-token.js": { "maxDuration": 10 },
+    "api/validate.js":     { "maxDuration": 5  },
+    "api/cancel-token.js": { "maxDuration": 10 }
+  }
+}
