@@ -75,7 +75,7 @@ module.exports = async function handler(req, res) {
     previewAt.setHours(17, 0, 0, 0);
 
     const activeAt = new Date(booking_date + 'T11:30:00');
-    const expiresAt = new Date(booking_date + 'T15:00:00');
+    const expiresAt = new Date(booking_date + 'T23:59:59');
     const expiresAtUnix = Math.floor(expiresAt.getTime() / 1000);
 
     const lookupKey = `lookup:${route}:${booking_date}`;
