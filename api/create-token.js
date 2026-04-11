@@ -97,7 +97,7 @@ module.exports = async function handler(req, res) {
     // Push token link to Klaviyo profile
 if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
   try {
-    await fetch('https://a.klaviyo.com/api/profile-import/', {
+    await fetch('https://a.klaviyo.com/api/events/', {
       method: 'POST',
       headers: {
         'Authorization': `Klaviyo-API-Key ${process.env.KLAVIYO_PRIVATE_KEY}`,
@@ -106,25 +106,36 @@ if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
       },
       body: JSON.stringify({
         data: {
-          type: 'profile',
+          type: 'event',
           attributes: {
-            email: guest_email,
+            profile: {
+              data: {
+                type: 'profile',
+                attributes: { email: guest_email }
+              }
+            },
+            metric: {
+              data: {
+                type: 'metric',
+                attributes: { name: 'Experience Link Ready' }
+              }
+            },
             properties: {
               clue_link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
               booking_date: booking_date,
               booking_route: route,
-              booking_diet: diet
+              booking_diet: diet,
+              guest_name: guest_name
             }
           }
         }
       })
     });
-    console.log('Klaviyo profile updated for', guest_email);
+    console.log('Klaviyo event fired for', guest_email);
   } catch (klaviyoErr) {
     console.error('Klaviyo update failed:', klaviyoErr);
   }
-}
-    return res.status(200).json({
+}    return res.status(200).json({
       token,
       route,
       booking_date,
