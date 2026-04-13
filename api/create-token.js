@@ -192,7 +192,7 @@ reminderDate.setUTCHours(nowPlus2.getUTCHours(), nowPlus2.getUTCMinutes(), 0, 0)
             guest_name
           };
 
-          const qstashRes = await fetch('https://qstash.upstash.io/v2/publish/https://cc-experience.vercel.app/api/send-reminder', {
+          const qstashRes = await fetch('https://qstash-eu-central-1.upstash.io/v2/publish/https://cc-experience.vercel.app/api/send-reminder', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
