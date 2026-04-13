@@ -111,6 +111,8 @@ module.exports = async function handler(req, res) {
 
     if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
       try {
+        const clue_link = `https://cluesandculture.com/pages/west-end-route?token=${token}`;
+
         await fetch('https://a.klaviyo.com/api/events/', {
           method: 'POST',
           headers: {
@@ -119,24 +121,24 @@ module.exports = async function handler(req, res) {
             'revision': '2024-02-15'
           },
           body: JSON.stringify({
-  data: {
-    type: 'event',
-    attributes: {
-      profile: {
-        data: {
-          type: 'profile',
-          attributes: {
-            email: guest_email,
-            properties: {
-              clue_link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
-              booking_date: booking_date,
-              booking_route: route,
-              booking_diet: diet,
-              guest_name: guest_name
-            }
-          }
-        }
-      },
+            data: {
+              type: 'event',
+              attributes: {
+                profile: {
+                  data: {
+                    type: 'profile',
+                    attributes: {
+                      email: guest_email,
+                      properties: {
+                        clue_link: clue_link,
+                        booking_date: booking_date,
+                        booking_route: route,
+                        booking_diet: diet,
+                        guest_name: guest_name
+                      }
+                    }
+                  }
+                },
                 metric: {
                   data: {
                     type: 'metric',
@@ -144,7 +146,7 @@ module.exports = async function handler(req, res) {
                   }
                 },
                 properties: {
-                  clue_link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
+                  clue_link: clue_link,
                   booking_date: booking_date,
                   booking_route: route,
                   booking_diet: diet,
