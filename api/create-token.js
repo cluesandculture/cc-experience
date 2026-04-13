@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
       token: process.env.UPSTASH_REDIS_REST_TOKEN,
     });
 
-    // On reschedule — delete old token
+    // On reschedule — delete old token and cancel old reminder
     if (body.topic === 'booking-updated') {
       const timeline = payload.timeline || [];
       const rescheduleEntry = timeline.find(t => t.cardTitle && t.cardTitle.includes('Booking date'));
@@ -109,10 +109,11 @@ module.exports = async function handler(req, res) {
 
     console.log('Token created:', token, 'for', route, booking_date, guest_email);
 
+    const clue_link = `https://cluesandculture.com/pages/west-end-route?token=${token}`;
+
+    // Fire Klaviyo Experience Link Ready event + set profile properties
     if (guest_email && process.env.KLAVIYO_PRIVATE_KEY) {
       try {
-        const clue_link = `https://cluesandculture.com/pages/west-end-route?token=${token}`;
-
         await fetch('https://a.klaviyo.com/api/events/', {
           method: 'POST',
           headers: {
@@ -130,11 +131,11 @@ module.exports = async function handler(req, res) {
                     attributes: {
                       email: guest_email,
                       properties: {
-                        clue_link: clue_link,
-                        booking_date: booking_date,
+                        clue_link,
+                        booking_date,
                         booking_route: route,
                         booking_diet: diet,
-                        guest_name: guest_name
+                        guest_name
                       }
                     }
                   }
@@ -146,11 +147,11 @@ module.exports = async function handler(req, res) {
                   }
                 },
                 properties: {
-                  clue_link: clue_link,
-                  booking_date: booking_date,
+                  clue_link,
+                  booking_date,
                   booking_route: route,
                   booking_diet: diet,
-                  guest_name: guest_name
+                  guest_name
                 }
               }
             }
@@ -162,13 +163,66 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Schedule day-before reminder via QStash
+    // Fires at 5pm ET the day before the event
+    if (guest_email && process.env.QSTASH_TOKEN) {
+      try {
+        // Calculate 5pm ET the day before the event
+        // ET = UTC-5 (EST) or UTC-4 (EDT)
+        // We use UTC-4 (EDT) for April-November events
+        // 5pm ET = 9pm UTC (EDT) = 21:00 UTC
+        const reminderDate = new Date(booking_date + 'T00:00:00Z');
+        reminderDate.setDate(reminderDate.getDate() - 1); // day before
+        reminderDate.setUTCHours(21, 0, 0, 0);           // 5pm EDT = 21:00 UTC
+
+        const nowMs = Date.now();
+        const reminderMs = reminderDate.getTime();
+
+        if (reminderMs > nowMs) {
+          // Only schedule if reminder is in the future
+          const delaySeconds = Math.floor((reminderMs - nowMs) / 1000);
+
+          const reminderPayload = {
+            email: guest_email,
+            clue_link,
+            booking_date,
+            booking_route: route,
+            booking_diet: diet,
+            guest_name
+          };
+
+          const qstashRes = await fetch('https://qstash.upstash.io/v2/publish/https://cc-experience.vercel.app/api/send-reminder', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+              'Content-Type': 'application/json',
+              'Upstash-Delay': `${delaySeconds}s`
+            },
+            body: JSON.stringify(reminderPayload)
+          });
+
+          if (qstashRes.ok) {
+            const qstashData = await qstashRes.json();
+            console.log('QStash reminder scheduled:', qstashData.messageId, 'fires at', reminderDate.toISOString());
+          } else {
+            const qstashErr = await qstashRes.text();
+            console.error('QStash scheduling failed:', qstashErr);
+          }
+        } else {
+          console.log('Reminder date is in the past, skipping QStash schedule');
+        }
+      } catch (qstashErr) {
+        console.error('QStash error:', qstashErr);
+      }
+    }
+
     return res.status(200).json({
       token,
       route,
       booking_date,
       diet,
       guest_email,
-      link: `https://cluesandculture.com/pages/west-end-route?token=${token}`,
+      link: clue_link,
       preview_at: previewAt.toISOString(),
       active_at: activeAt.toISOString(),
       expires_at: expiresAt.toISOString()
