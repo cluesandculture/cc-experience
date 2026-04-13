@@ -193,14 +193,15 @@ reminderDate.setUTCHours(nowPlus2.getUTCHours(), nowPlus2.getUTCMinutes(), 0, 0)
           };
 
           const qstashRes = await fetch('https://qstash.upstash.io/v2/publish/https://cc-experience.vercel.app/api/send-reminder', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
-              'Content-Type': 'application/json',
-              'Upstash-Delay': `${delaySeconds}s`
-            },
-            body: JSON.stringify(reminderPayload)
-          });
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+    'Content-Type': 'application/json',
+    'Upstash-Delay': `${delaySeconds}s`,
+    'Upstash-Forward-Content-Type': 'application/json'
+  },
+  body: JSON.stringify(reminderPayload)
+});
 
           if (qstashRes.ok) {
             const qstashData = await qstashRes.json();
