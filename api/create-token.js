@@ -173,7 +173,8 @@ module.exports = async function handler(req, res) {
         // 5pm ET = 9pm UTC (EDT) = 21:00 UTC
         const reminderDate = new Date(booking_date + 'T00:00:00Z');
         reminderDate.setDate(reminderDate.getDate() - 1); // day before
-        reminderDate.setUTCHours(21, 0, 0, 0);           // 5pm EDT = 21:00 UTC
+        const nowPlus2 = new Date(Date.now() + 2 * 60 * 1000);
+reminderDate.setUTCHours(nowPlus2.getUTCHours(), nowPlus2.getUTCMinutes(), 0, 0);
 
         const nowMs = Date.now();
         const reminderMs = reminderDate.getTime();
