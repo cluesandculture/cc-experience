@@ -70,12 +70,19 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const previewAt = new Date(booking_date + 'T00:00:00');
-    previewAt.setDate(previewAt.getDate() - 1);
-    previewAt.setHours(17, 0, 0, 0);
+    // All times stored as UTC, converted from ET (EDT = UTC-4, applies Apr–Nov)
+    //
+    // previewAt  = 5:00pm ET day before  = 21:00 UTC day before
+    // activeAt   = 12:00pm ET day of     = 16:00 UTC day of
+    // expiresAt  = 11:59pm ET day of     = 03:59 UTC next day
 
-    const activeAt = new Date(booking_date + 'T11:30:00');
-    const expiresAt = new Date(booking_date + 'T23:59:59');
+    const previewAt  = new Date(booking_date + 'T21:00:00.000Z');
+    previewAt.setUTCDate(previewAt.getUTCDate() - 1); // move back to day before
+
+    const activeAt   = new Date(booking_date + 'T16:00:00.000Z'); // noon ET = 16:00 UTC
+    const expiresAt  = new Date(booking_date + 'T03:59:59.000Z'); // 11:59pm ET = next day 03:59 UTC
+    expiresAt.setUTCDate(expiresAt.getUTCDate() + 1); // move to next day
+
     const expiresAtUnix = Math.floor(expiresAt.getTime() / 1000);
 
     const lookupKey = `lookup:${route}:${booking_date}`;
@@ -108,6 +115,7 @@ module.exports = async function handler(req, res) {
     }
 
     console.log('Token created:', token, 'for', route, booking_date, guest_email);
+    console.log('previewAt:', previewAt.toISOString(), '| activeAt:', activeAt.toISOString(), '| expiresAt:', expiresAt.toISOString());
 
     const clue_link = `https://cluesandculture.com/pages/west-end-route?token=${token}`;
 
@@ -165,21 +173,16 @@ module.exports = async function handler(req, res) {
 
     // Schedule day-before reminder via QStash
     // Fires at 5pm ET the day before the event
+    // EDT (Apr–Nov): 5pm ET = 21:00 UTC
     if (guest_email && process.env.QSTASH_TOKEN) {
       try {
-        // Calculate 5pm ET the day before the event
-        // ET = UTC-5 (EST) or UTC-4 (EDT)
-        // We use UTC-4 (EDT) for April-November events
-        // 5pm ET = 9pm UTC (EDT) = 21:00 UTC
-        const reminderDate = new Date(booking_date + 'T00:00:00Z');
-        reminderDate.setDate(reminderDate.getDate() - 1); // day before
-        reminderDate.setUTCHours(21, 0, 0, 0);           // 5pm EDT = 21:00 UTC
+        const reminderDate = new Date(booking_date + 'T21:00:00.000Z');
+        reminderDate.setUTCDate(reminderDate.getUTCDate() - 1); // day before
 
         const nowMs = Date.now();
         const reminderMs = reminderDate.getTime();
 
         if (reminderMs > nowMs) {
-          // Only schedule if reminder is in the future
           const delaySeconds = Math.floor((reminderMs - nowMs) / 1000);
 
           const reminderPayload = {
