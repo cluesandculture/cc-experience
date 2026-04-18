@@ -1,35 +1,85 @@
 // /api/send-vendor-notice.js
 // Called by QStash on Thursday 8:45 AM ET (for Saturday) and Friday 8:45 AM ET (for Sunday)
-// Queries Klaviyo for profiles with booking_date matching the target date,
-// aggregates guest info, and sends a vendor summary email via Klaviyo
+// Queries Klaviyo Bookeasy Booking Created events for the target date,
+// aggregates guest info, and fires a Vendor Notice event per food stop via Klaviyo
 
 const KLAVIYO_KEY = process.env.KLAVIYO_PRIVATE_KEY;
+const BOOKEASY_METRIC_ID = process.env.BOOKEASY_METRIC_ID;
 
-// --- Query Klaviyo profiles by booking_date property ---
-async function getProfilesForDate(targetDate) {
-  const filter = encodeURIComponent(`equals(properties["booking_date"],"${targetDate}")`);
-  const url = `https://a.klaviyo.com/api/profiles/?filter=${filter}&page[size]=100`;
+// --- Convert YYYY-MM-DD to Bookeasy format: "Sun, 19 Apr 2026" ---
+function formatBookeasyDate(targetDate) {
+  const [year, month, day] = targetDate.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+  const dayNum = date.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'UTC' });
+  const monthStr = date.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  const yearStr = date.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'UTC' });
+  return `${weekday}, ${dayNum} ${monthStr} ${yearStr}`;
+}
+
+// --- Query Klaviyo events for Bookeasy Booking Created on target date ---
+async function getGuestsForDate(targetDate) {
+  const bookeasyDate = formatBookeasyDate(targetDate);
+  console.log('Looking for bookingDates:', bookeasyDate);
+
+  // Fetch recent Bookeasy Booking Created events
+  // We fetch up to 100 and filter by bookingDates property
+  const filter = encodeURIComponent(`equals(metric_id,"${BOOKEASY_METRIC_ID}")`);
+  const url = `https://a.klaviyo.com/api/events/?filter=${filter}&page[size]=100&fields[event]=event_properties&include=profile`;
 
   const response = await fetch(url, {
-    method: 'GET',
     headers: {
       Authorization: `Klaviyo-API-Key ${KLAVIYO_KEY}`,
       revision: '2024-02-15',
-      'Content-Type': 'application/json',
     },
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Klaviyo profiles error: ${err}`);
+    throw new Error(`Klaviyo events error: ${err}`);
   }
 
   const data = await response.json();
-  return data.data || [];
+  const events = data.data || [];
+  const included = data.included || [];
+
+  // Build a map of profile id -> profile attributes
+  const profileMap = {};
+  included.forEach((item) => {
+    if (item.type === 'profile') {
+      profileMap[item.id] = item.attributes;
+    }
+  });
+
+  // Filter events matching our target bookingDates
+  const matchingEvents = events.filter((event) => {
+    const props = event.attributes?.event_properties || {};
+    return props.bookingDates === bookeasyDate;
+  });
+
+  console.log(`Found ${matchingEvents.length} bookings for ${bookeasyDate}`);
+
+  // Build guest list from matching events
+  return matchingEvents.map((event) => {
+    const props = event.attributes?.event_properties || {};
+    const profileId = event.relationships?.profile?.data?.id;
+    const profile = profileMap[profileId] || {};
+
+    const firstName = profile.first_name || '';
+    const lastName = profile.last_name || '';
+    const name = `${firstName} ${lastName}`.trim() ||
+      props.customerDisplayName ||
+      profile.email ||
+      'Guest';
+
+    // variantName from Bookeasy event = Standard or Vegetarian
+    const preference = props.variantName || 'Standard';
+
+    return { name, preference };
+  });
 }
 
-// --- Food stop config ---
-// Add vendor emails as Vercel env vars, or set FOOD_STOPS_CONFIG as a JSON string
+// --- Food stop config from env ---
 function getFoodStops() {
   if (process.env.FOOD_STOPS_CONFIG) {
     try {
@@ -71,7 +121,7 @@ function getFoodStops() {
   ].filter((s) => s.primary_contact_email);
 }
 
-// --- Send vendor summary email via Klaviyo event ---
+// --- Send vendor summary event via Klaviyo ---
 async function sendVendorEmail({ stop, guests, targetDate, totalStandard, totalVegetarian }) {
   const totalGuests = guests.length;
   const amountDue = (parseFloat(stop.vendor_rate || 0) * totalGuests).toFixed(2);
@@ -166,7 +216,7 @@ async function sendVendorEmail({ stop, guests, targetDate, totalStandard, totalV
     throw new Error(`Klaviyo send error for ${toEmail}: ${err}`);
   }
 
-  console.log(`Vendor notice sent to ${toEmail} for ${stop.stop_name}`);
+  console.log(`Vendor notice fired for ${stop.stop_name} → ${toEmail}`);
 }
 
 // --- Main handler ---
@@ -190,26 +240,15 @@ module.exports = async function handler(req, res) {
   console.log('send-vendor-notice firing for date:', target_date);
 
   try {
-    const profiles = await getProfilesForDate(target_date);
-    console.log(`Found ${profiles.length} profiles for ${target_date}`);
+    const guests = await getGuestsForDate(target_date);
 
-    if (profiles.length === 0) {
+    if (guests.length === 0) {
       return res.status(200).json({
         success: true,
         message: 'No bookings found for this date',
         target_date,
       });
     }
-
-    const guests = profiles.map((profile) => {
-      const attrs = profile.attributes || {};
-      const props = attrs.properties || {};
-      const firstName = attrs.first_name || '';
-      const lastName = attrs.last_name || '';
-      const name = `${firstName} ${lastName}`.trim() || attrs.email || 'Guest';
-      const preference = props.booking_diet || 'Standard';
-      return { name, preference };
-    });
 
     const totalStandard = guests.filter(
       (g) => !g.preference.toLowerCase().includes('vegetarian')
