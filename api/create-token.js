@@ -79,7 +79,7 @@ module.exports = async function handler(req, res) {
     const previewAt  = new Date(booking_date + 'T21:00:00.000Z');
     previewAt.setUTCDate(previewAt.getUTCDate() - 1); // move back to day before
 
-    const activeAt   = new Date(booking_date + 'T16:00:00.000Z'); // noon ET = 16:00 UTC
+    const activeAt = new Date(booking_date + 'T11:15:00.000Z'); // 7:15am ET = 11:15 UTC
     const expiresAt  = new Date(booking_date + 'T03:59:59.000Z'); // 11:59pm ET = next day 03:59 UTC
     expiresAt.setUTCDate(expiresAt.getUTCDate() + 1); // move to next day
 
